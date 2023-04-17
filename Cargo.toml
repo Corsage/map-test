@@ -1,0 +1,19 @@
+[package]
+name = "map-test"
+version = "0.1.0"
+edition = "2021"
+
+[profile.release]
+lto = "thin"
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[dependencies]
+bevy = "0.10.0"
+bevy_common_assets = { version = "0.6.0", features = ["json"]}
+bevy_rapier2d = "0.21.0"
+serde = { version = "1.0", features = ["derive"]}
