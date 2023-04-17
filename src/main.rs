@@ -2,8 +2,10 @@ use std::collections::HashMap;
 
 use bevy::{asset::LoadState, prelude::*};
 use bevy_common_assets::json::JsonAssetPlugin;
+use player::PlayerPlugin;
 use vectors::Vector3Int;
 
+mod player;
 pub mod vectors;
 
 const TILE_SIZE: f32 = 16.;
@@ -50,11 +52,13 @@ pub enum AppState {
 
 fn main() {
     App::new()
-        .add_plugins(DefaultPlugins)
+        .add_plugins(DefaultPlugins.set(ImagePlugin::default_nearest()))
         .add_state::<AppState>()
         .init_resource::<AssetList>()
         .init_resource::<CurrentBoard>()
         .add_plugin(JsonAssetPlugin::<Scene>::new(&["json"]))
+        // Player plugin.
+        .add_plugin(PlayerPlugin)
         // Load assets.
         .add_startup_system(load_assets)
         // Load camera.
@@ -63,6 +67,7 @@ fn main() {
         // Load scene once assets are done loading.
         .add_system(load_scene.in_schedule(OnEnter(AppState::Game)))
         .add_system(spawn_scene_renderer)
+        .add_system(zoom_2d)
         .run();
 }
 
@@ -122,8 +127,6 @@ fn load_scene(
     mut current: ResMut<CurrentBoard>,
 ) {
     if let Some(scene) = scenes.remove(scene.0.id()) {
-        info!("{:?}", scene);
-
         // Load scene layer by layer, increasing the z-index as we do.
         let mut z: i32 = 0;
         for layer in scene.layers.iter() {
@@ -180,4 +183,17 @@ fn setup_camera(mut commands: Commands) {
         camera.transform.translation.z,
     );
     commands.spawn(camera);
+}
+
+fn zoom_2d(mut q: Query<&mut OrthographicProjection, With<Camera>>) {
+    let mut projection = q.single_mut();
+
+    // example: zoom out
+    // projection.scale *= 5.;
+    // example: zoom in
+    projection.scale *= 0.9;
+
+    // always ensure you end up with sane values
+    // (pick an upper and lower bound for your application)
+    projection.scale = projection.scale.clamp(0.5, 5.0);
 }
