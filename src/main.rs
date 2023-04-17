@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use bevy::{asset::LoadState, prelude::*};
 use bevy_common_assets::json::JsonAssetPlugin;
-use vectors::Vector2Int;
+use vectors::Vector3Int;
 
 pub mod vectors;
 
@@ -25,7 +25,7 @@ pub struct GraphicsAssets {
 
 #[derive(Default, Resource)]
 pub struct CurrentBoard {
-    pub tiles: HashMap<Vector2Int, Entity>,
+    pub tiles: HashMap<Vector3Int, Entity>,
 }
 
 #[derive(Resource)]
@@ -33,7 +33,7 @@ struct SceneHandle(Handle<Scene>);
 
 #[derive(Component)]
 struct Position {
-    pub v: Vector2Int,
+    pub v: Vector3Int,
 }
 
 #[derive(Component)]
@@ -107,11 +107,11 @@ fn check_asset_loading(
     };
 }
 
-fn get_world_position(position: &Position, z: f32) -> Vec3 {
+fn get_world_position(position: &Position) -> Vec3 {
     Vec3::new(
         TILE_SIZE * position.v.x as f32,
         TILE_SIZE * position.v.y as f32,
-        z,
+        position.v.z as f32,
     )
 }
 
@@ -123,20 +123,26 @@ fn load_scene(
 ) {
     if let Some(scene) = scenes.remove(scene.0.id()) {
         info!("{:?}", scene);
-        for (pos, i) in scene.layers[0].iter().enumerate() {
-            info!("Got tile index: {}", i);
 
-            // Calculate y from width.
-            // Note: (0, 0) is actually centered.
-            // In order to center the map which is 32 x 32
-            // we have to start at (-16, -16).
-            let index: i32 = (*i as i32) - 1;
-            if index >= 0 {
-                let v = Vector2Int::new(((pos as i32) % 32) - 16, (-(pos as i32) / 32) + 16);
-                let tile = commands
-                    .spawn((Position { v }, Tile { i: index as usize }))
-                    .id(); // Offset by 1.
-                current.tiles.insert(v, tile);
+        // Load scene layer by layer, increasing the z-index as we do.
+        let mut z: i32 = 0;
+        for layer in scene.layers.iter() {
+            for (pos, i) in layer.iter().enumerate() {
+                // Calculate y from width.
+                // Note: (0, 0) is actually centered.
+                // In order to center the map which is 32 x 32
+                // we have to start at (-16, -16).
+                let index: i32 = (*i as i32) - 1;
+                if index >= 0 {
+                    let x = (pos as i32 % 32) - 16;
+                    let y = 16 - (pos as i32) / 32;
+
+                    let v = Vector3Int::new(x, y, z);
+                    let tile = commands
+                        .spawn((Position { v }, Tile { i: index as usize }))
+                        .id(); // Offset by 1.
+                    current.tiles.insert(v, tile);
+                }
             }
         }
     }
@@ -151,7 +157,7 @@ fn spawn_scene_renderer(
         let mut sprite = TextureAtlasSprite::new(tile.i);
         sprite.custom_size = Some(Vec2::splat(TILE_SIZE));
 
-        let v = get_world_position(&position, TILE_Z);
+        let v = get_world_position(&position);
 
         commands.entity(entity).insert(SpriteSheetBundle {
             sprite,
