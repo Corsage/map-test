@@ -12,7 +12,7 @@ const TILE_Z: f32 = 0.;
 #[derive(serde::Deserialize, bevy::reflect::TypeUuid, Debug)]
 #[uuid = "413be529-bfeb-41b3-9db0-4b8b380a2c46"] // <-- keep me unique
 struct Scene {
-    layers: Vec<[usize; 2]>, // Corresponds to width / height.
+    layers: Vec<Vec<usize>>, // Corresponds to width * height.
 }
 
 #[derive(Default, Resource)]
@@ -58,7 +58,7 @@ fn main() {
         // Load assets.
         .add_startup_system(load_assets)
         // Load camera.
-        .add_startup_system(setup_camera)
+        .add_startup_system(spawn_camera)
         .add_system(check_asset_loading.in_set(OnUpdate(AppState::Loading)))
         // Load scene once assets are done loading.
         .add_system(load_scene.in_schedule(OnEnter(AppState::Game)))
@@ -73,7 +73,7 @@ fn load_assets(
     mut assets: ResMut<AssetList>,
 ) {
     let scene = server.load("data.json");
-    let texture = server.load("tilemap.png");
+    let texture = server.load("tilemap_packed.png");
 
     assets.0.push(scene.clone_untyped());
     assets.0.push(texture.clone_untyped());
@@ -126,9 +126,18 @@ fn load_scene(
         for (pos, i) in scene.layers[0].iter().enumerate() {
             info!("Got tile index: {}", i);
 
-            let v = Vector2Int::new(pos as i32, 0);
-            let tile = commands.spawn((Position { v }, Tile { i: *i })).id();
-            current.tiles.insert(v, tile);
+            // Calculate y from width.
+            // Note: (0, 0) is actually centered.
+            // In order to center the map which is 32 x 32
+            // we have to start at (-16, -16).
+            let index: i32 = (*i as i32) - 1;
+            if index >= 0 {
+                let v = Vector2Int::new(((pos as i32) % 32) - 16, (-(pos as i32) / 32) + 16);
+                let tile = commands
+                    .spawn((Position { v }, Tile { i: index as usize }))
+                    .id(); // Offset by 1.
+                current.tiles.insert(v, tile);
+            }
         }
     }
 }
@@ -151,6 +160,10 @@ fn spawn_scene_renderer(
             ..Default::default()
         });
     }
+}
+
+fn spawn_camera(mut commands: Commands) {
+    commands.spawn(Camera2dBundle { ..default() });
 }
 
 fn setup_camera(mut commands: Commands) {
